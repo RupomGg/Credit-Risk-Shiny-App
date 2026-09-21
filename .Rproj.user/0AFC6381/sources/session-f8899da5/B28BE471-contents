@@ -1,0 +1,45 @@
+library(shiny)
+library(shinythemes)
+
+rf_model <- readRDS("rf_model.rds")
+train_template <- readRDS("train_template.rds")
+
+ui <- fluidPage(
+  theme = shinytheme("flatly"),
+  titlePanel("Credit Risk Scorer"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("checking", "Checking Account Status",
+                  choices = c("< 0 DM" = "A11", "0-200 DM" = "A12",
+                              ">= 200 DM" = "A13", "No account" = "A14")),
+      numericInput("credit_amount", "Loan Amount (DM)", 3000, min = 0),
+      numericInput("duration", "Loan Duration (months)", 24, min = 1),
+      numericInput("age", "Applicant Age", 35, min = 18, max = 100),
+      selectInput("purpose", "Loan Purpose",
+                  choices = c("New car" = "A40", "Used car" = "A41",
+                              "Furniture/equipment" = "A42", "Radio/TV" = "A43",
+                              "Business" = "A49", "Other" = "A410")),
+      actionButton("score", "Assess Risk", class = "btn-primary")
+    ),
+    mainPanel(
+      h3("Result"),
+      textOutput("result")
+    )
+  )
+)
+
+server <- function(input, output) {
+  observeEvent(input$score, {
+    applicant <- train_template[1, ]
+    applicant$checking <- factor(input$checking, levels = levels(train_template$checking))
+    applicant$credit_amount <- input$credit_amount
+    applicant$duration <- input$duration
+    applicant$age <- input$age
+    applicant$purpose <- factor(input$purpose, levels = levels(train_template$purpose))
+    
+    prob <- predict(rf_model, applicant, type = "prob")[, "bad"]
+    output$result <- renderText(paste0("Predicted default risk: ", round(prob * 100, 1), "%"))
+  })
+}
+
+shinyApp(ui, server)
